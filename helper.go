@@ -5,12 +5,11 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"encoding/json"
-	cp "github.com/otiai10/copy"
 	"github.com/mholt/archiver"
+	cp "github.com/otiai10/copy"
 )
 
-//go get https://github.com/otiai10/copy
-//go get -u github.com/mholt/archiver/cmd/arc
+//go get -u github.com/mholt/archiver/cmd/archiver
 
 func RemoveContents(dir string) error {
     d, err := os.Open(dir)
@@ -31,11 +30,24 @@ func RemoveContents(dir string) error {
     return nil
 }
 
+func secCopy(src, dst string) {
+	nsrc := filepath.Join(src, "output", filepath.Base(dst))
+	//fmt.Println("src", nsrc)
+	//fmt.Println("dst", dst)
+	err := cp.Copy(nsrc, dst)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
 type configInfo struct {
 	CP string `json:"cp"`
 	CSB string `json:"csb"`
 	XML string `json:"xml"`
 	Output string `json:"output"`
+	Input string `json:"input"`
+	File1 string `json:file1`
+	File2 string `json:file2`
 }
 
 func loadConf() (*configInfo, error) {
@@ -53,15 +65,16 @@ func loadConf() (*configInfo, error) {
 }
 
 func createDir(d string) {
-	if _, err := os.Stat(d); os.IsNotExist(err) {
+	if isFileAndDirExist(d){
 		os.MkdirAll(d, os.ModePerm)
 	}
 }
 
-func Copy(src, dst string) {
-	ndst := filepath.Join(dst, filepath.Base(src))
-	createDir(ndst)
-	cp.Copy(src, ndst)
+func isFileAndDirExist(d string) bool {
+	if _, err := os.Stat(d); os.IsNotExist(err) {
+		return false
+	}
+	return true
 }
 
 func main() {
@@ -71,13 +84,32 @@ func main() {
 		return
 	}
 
-	err = RemoveContents(conf.Output)
+	err = RemoveContents(conf.Input)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	err = archiver.Archive([]string{conf.CP, conf.CSB, conf.XML}, filepath.Join(conf.Output, "src.zip"))
+	err = archiver.Archive([]string{conf.CP, conf.CSB, conf.XML}, filepath.Join(conf.Input, conf.File1))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	outputFile := filepath.Join(conf.Output, conf.File2)
+	if isFileAndDirExist(outputFile) {
+		err = archiver.Unarchive(outputFile, conf.Output)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		secCopy(conf.Output, conf.CP)
+		secCopy(conf.Output, conf.CSB)
+		secCopy(conf.Output, conf.XML)
+	}
+
+	err = RemoveContents(conf.Output)
 	if err != nil {
 		fmt.Println(err)
 		return
